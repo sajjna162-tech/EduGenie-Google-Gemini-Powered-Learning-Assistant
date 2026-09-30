@@ -1,0 +1,419 @@
+import os
+import streamlit as st
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+
+# --------------------------------------------------
+# Load environment variables
+# --------------------------------------------------
+
+load_dotenv()
+
+API_KEY = os.getenv("GEMINI_API_KEY")
+
+if not API_KEY:
+    st.error("GEMINI_API_KEY is missing. Please add it to your .env file.")
+    st.stop()
+
+client = genai.Client(api_key=API_KEY)
+
+# --------------------------------------------------
+# EduGenie System Prompt
+# --------------------------------------------------
+
+EDUGENIE_PROMPT = """
+You are EduGenie, an intelligent, friendly, and personalized
+learning assistant powered by Google Gemini.
+
+Your mission is to help students understand concepts, learn
+effectively, practice skills, and improve academically rather
+than simply giving them answers.
+
+CORE BEHAVIOR
+
+- Explain concepts clearly using simple, student-friendly language.
+- Adapt explanations to the student's age, grade, subject,
+  and existing knowledge.
+- Break difficult topics into small, logical steps.
+- Use examples, analogies, tables, bullet points, and
+  step-by-step explanations when helpful.
+- Encourage students to understand the reasoning behind an answer.
+- Ask short questions to check understanding when appropriate.
+- Never shame or discourage a student for making mistakes.
+- Be patient, supportive, encouraging, and academically honest.
+
+TEACHING APPROACH
+
+When answering an academic question:
+
+1. Identify what the student is asking.
+2. Give a clear explanation.
+3. Break the solution into logical steps.
+4. Provide an example when useful.
+5. Highlight the key takeaway.
+6. Give a short practice question when appropriate.
+
+MATHEMATICS
+
+- Show calculations step by step.
+- Explain formulas and methods.
+- Verify the final answer when possible.
+
+SCIENCE
+
+- Explain concepts using real-world examples.
+- Clearly distinguish facts, theories, hypotheses, and examples.
+
+PROGRAMMING
+
+- Explain the logic before or alongside the code.
+- Provide clean, readable code.
+- Explain errors and how to fix them.
+- Encourage good programming practices.
+
+EXAM PREPARATION
+
+- Create concise revision notes.
+- Generate practice questions and quizzes.
+- Explain incorrect answers.
+- Create realistic study plans.
+
+LEARNING MODES
+
+Support these modes:
+
+Learn: Teach a topic from beginner to advanced level.
+Explain: Explain a concept in simple language.
+Solve: Work through a problem step by step.
+Quiz: Ask questions and evaluate answers.
+Practice: Generate exercises based on the student's level.
+Summarize: Convert material into concise study notes.
+Flashcards: Create question-and-answer flashcards.
+Exam Prep: Help prepare for an examination.
+Study Plan: Create a structured learning schedule.
+Ask Me: Answer general academic questions.
+
+PERSONALIZATION
+
+Use information provided by the student, including:
+
+- Grade/class level
+- Subject
+- Learning goals
+- Preferred explanation style
+- Difficulty level
+- Exam or curriculum
+- Previous mistakes or weak areas
+
+Do not assume information that the student has not provided
+when it would materially affect the answer.
+
+ACCURACY
+
+- Prioritize factual accuracy.
+- Do not invent facts, sources, citations, statistics, or references.
+- If uncertain, clearly state the uncertainty.
+- Carefully verify calculations.
+- If information may be outdated, clearly indicate that it
+  should be verified.
+
+HOMEWORK POLICY
+
+Help students learn rather than blindly completing assignments.
+
+When a student asks for a homework answer:
+
+- Explain the method.
+- Show the reasoning.
+- Encourage the student to attempt similar problems independently.
+- If a direct answer is appropriate, provide it with an explanation.
+
+COMMUNICATION STYLE
+
+Be:
+
+- Friendly
+- Clear
+- Concise
+- Encouraging
+- Educational
+- Non-judgmental
+
+Avoid unnecessarily complicated terminology.
+Define technical terms when necessary.
+
+SAFETY AND PRIVACY
+
+- Do not request unnecessary personal information.
+- Protect sensitive information provided by students.
+- Do not provide dangerous, illegal, or harmful instructions.
+- For medical, legal, financial, or other high-stakes questions,
+  provide general educational information and encourage consultation
+  with an appropriate professional.
+- Treat children and young students with appropriate care and safety.
+
+RESPONSE STRUCTURE
+
+When appropriate, use:
+
+Answer
+A clear explanation.
+
+Step-by-Step
+The reasoning or process.
+
+Example
+A practical example.
+
+Key Takeaway
+The most important point.
+
+Try It Yourself
+A short practice question.
+
+Always prioritize learning, understanding, and student growth
+over simply producing an answer.
+
+You are EduGenie — a reliable digital tutor whose goal is to make
+learning simpler, smarter, and more engaging.
+"""
+
+# --------------------------------------------------
+# Page configuration
+# --------------------------------------------------
+
+st.set_page_config(
+    page_title="EduGenie",
+    page_icon="🎓",
+    layout="wide"
+)
+
+# --------------------------------------------------
+# Custom CSS
+# --------------------------------------------------
+
+st.markdown("""
+<style>
+
+.main-title {
+    font-size: 42px;
+    font-weight: 700;
+    color: #4F46E5;
+    text-align: center;
+}
+
+.subtitle {
+    text-align: center;
+    color: #6B7280;
+    font-size: 18px;
+    margin-bottom: 30px;
+}
+
+.mode-card {
+    padding: 15px;
+    border-radius: 12px;
+    background-color: #F3F4F6;
+    margin-bottom: 10px;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# --------------------------------------------------
+# Header
+# --------------------------------------------------
+
+st.markdown(
+    '<div class="main-title">🎓 EduGenie</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    '<div class="subtitle">'
+    'Your AI-powered personal learning assistant'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+# --------------------------------------------------
+# Sidebar
+# --------------------------------------------------
+
+with st.sidebar:
+
+    st.header("⚙️ Learning Settings")
+
+    grade = st.selectbox(
+        "Grade / Level",
+        [
+            "Not specified",
+            "Primary School",
+            "Middle School",
+            "High School",
+            "College",
+            "University"
+        ]
+    )
+
+    subject = st.selectbox(
+        "Subject",
+        [
+            "General",
+            "Mathematics",
+            "Science",
+            "Physics",
+            "Chemistry",
+            "Biology",
+            "Computer Science",
+            "Programming",
+            "English",
+            "History"
+        ]
+    )
+
+    difficulty = st.selectbox(
+        "Difficulty",
+        [
+            "Beginner",
+            "Intermediate",
+            "Advanced"
+        ]
+    )
+
+    learning_mode = st.selectbox(
+        "Learning Mode",
+        [
+            "Ask Me",
+            "Learn",
+            "Explain",
+            "Solve",
+            "Quiz",
+            "Practice",
+            "Summarize",
+            "Flashcards",
+            "Exam Prep",
+            "Study Plan"
+        ]
+    )
+
+    st.divider()
+
+    if st.button("🗑️ Clear Chat", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun()
+
+# --------------------------------------------------
+# Session state
+# --------------------------------------------------
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# --------------------------------------------------
+# Display chat history
+# --------------------------------------------------
+
+for message in st.session_state.messages:
+
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# --------------------------------------------------
+# User input
+# --------------------------------------------------
+
+user_input = st.chat_input(
+    "Ask EduGenie anything about your studies..."
+)
+
+if user_input:
+
+    # Add user message
+    st.session_state.messages.append({
+        "role": "user",
+        "content": user_input
+    })
+
+    with st.chat_message("user"):
+        st.markdown(user_input)
+
+    # Student context
+    context = f"""
+Student Information:
+
+Grade/Level: {grade}
+Subject: {subject}
+Difficulty: {difficulty}
+Learning Mode: {learning_mode}
+
+Student Question:
+{user_input}
+"""
+
+    # Build conversation history
+    history = []
+
+    for message in st.session_state.messages[:-1]:
+
+        role = "user" if message["role"] == "user" else "model"
+
+        history.append(
+            types.Content(
+                role=role,
+                parts=[
+                    types.Part.from_text(
+                        text=message["content"]
+                    )
+                ]
+            )
+        )
+
+    # Add current question
+    history.append(
+        types.Content(
+            role="user",
+            parts=[
+                types.Part.from_text(
+                    text=context
+                )
+            ]
+        )
+    )
+
+    # --------------------------------------------------
+    # Generate Gemini response
+    # --------------------------------------------------
+
+    with st.chat_message("assistant"):
+
+        try:
+
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=history,
+                config=types.GenerateContentConfig(
+                    system_instruction=EDUGENIE_PROMPT,
+                    temperature=0.7,
+                    max_output_tokens=2048
+                )
+            )
+
+            answer = response.text
+
+            st.markdown(answer)
+
+            # Save assistant response
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": answer
+            })
+
+        except Exception as e:
+
+            error_message = (
+                "Sorry, I couldn't generate a response right now.\n\n"
+                f"Error: `{str(e)}`"
+            )
+
+            st.error(error_message)
